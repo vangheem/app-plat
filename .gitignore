@@ -5,3 +5,5 @@ tmp/
 *.exe
 .DS_Store
 coverage.out
+__pycache__/
+*.pyc
