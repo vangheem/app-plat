@@ -1,0 +1,82 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: pgbouncer
+  namespace: app-plat
+data:
+  pgbouncer.ini: |
+    [databases]
+    appplat = host=postgres port=5432 dbname=appplat
+
+    [pgbouncer]
+    listen_addr = 0.0.0.0
+    listen_port = 5432
+    auth_type = scram-sha-256
+    auth_file = /etc/pgbouncer/userlist.txt
+    auth_user = pgbouncer_auth
+    auth_query = SELECT username, password FROM pgbouncer.get_auth($1)
+    auth_dbname = appplat
+    pool_mode = transaction
+    max_client_conn = 1000
+    default_pool_size = 25
+    ignore_startup_parameters = extra_float_digits,options
+    admin_users = appplat
+    stats_users = appplat
+    pidfile = /tmp/pgbouncer.pid
+    unix_socket_dir = /tmp
+  userlist.txt: |
+    "pgbouncer_auth" "pgbouncer_auth"
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: pgbouncer
+  namespace: app-plat
+  labels:
+    app: pgbouncer
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: pgbouncer
+  template:
+    metadata:
+      labels:
+        app: pgbouncer
+      annotations:
+        sidecar.istio.io/inject: "false"
+    spec:
+      containers:
+        - name: pgbouncer
+          image: app-plat/pgbouncer:dev
+          imagePullPolicy: Never
+          ports:
+            - containerPort: 5432
+          volumeMounts:
+            - name: config
+              mountPath: /etc/pgbouncer
+          readinessProbe:
+            tcpSocket:
+              port: 5432
+            initialDelaySeconds: 2
+            periodSeconds: 5
+          resources:
+            requests:
+              cpu: 20m
+              memory: 32Mi
+      volumes:
+        - name: config
+          configMap:
+            name: pgbouncer
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: pgbouncer
+  namespace: app-plat
+spec:
+  selector:
+    app: pgbouncer
+  ports:
+    - port: 5432
+      targetPort: 5432

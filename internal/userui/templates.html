@@ -1,0 +1,417 @@
+{{define "htmlhead"}}
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>{{.Title}} · app-plat</title>
+  <link rel="stylesheet" href="/static/app.css">
+</head>
+<body>
+{{end}}
+
+{{define "htmlfoot"}}
+<script src="/static/htmx.min.js"></script>
+</body>
+</html>
+{{end}}
+
+{{define "shellstart"}}
+{{template "htmlhead" .}}
+<div class="shell">
+  <aside class="sidebar">
+    <div class="brand">app-plat <span>{{.Brand}}</span></div>
+    <nav class="nav">
+      {{range .Nav}}
+      <a href="{{.Href}}"{{if eq $.Active .Href}} class="active"{{end}}>{{.Label}}</a>
+      {{end}}
+    </nav>
+    <div class="side-meta">
+      {{if .User}}
+      {{if .User.Name}}<div>{{.User.Name}}</div>{{end}}
+      <div>{{.User.Email}}</div>
+      {{end}}
+      <form method="post" action="/logout">
+        <button type="submit">Log out</button>
+      </form>
+    </div>
+  </aside>
+  <main class="main">
+    <div class="topbar">
+      <h1>{{.Title}}</h1>
+    </div>
+    {{if .Flash}}<div class="flash">{{.Flash}}</div>{{end}}
+    {{if .Notice}}<p class="muted">{{.Notice}}</p>{{end}}
+{{end}}
+
+{{define "shellend"}}
+  </main>
+</div>
+{{template "htmlfoot" .}}
+{{end}}
+
+{{define "authstart"}}
+{{template "htmlhead" .}}
+<div class="auth-page">
+  <div class="login-wrap">
+    <div class="brand">app-plat <span>{{.Brand}}</span></div>
+    <div class="card">
+      {{if .Flash}}<div class="flash">{{.Flash}}</div>{{end}}
+{{end}}
+
+{{define "authend"}}
+    </div>
+  </div>
+</div>
+{{template "htmlfoot" .}}
+{{end}}
+
+{{define "login-fields"}}
+<form method="post" action="/login">
+  <input type="hidden" name="next" value="{{.Next}}">
+  <div class="field">
+    <label for="email">Email</label>
+    <input id="email" name="email" type="email" required autocomplete="username" value="{{.Email}}">
+  </div>
+  <div class="field">
+    <label for="password">Password</label>
+    <input id="password" name="password" type="password" required autocomplete="current-password">
+  </div>
+  <button type="submit">Sign in</button>
+</form>
+<p class="muted">No account? <a href="/register{{if .Next}}?next={{urlquery .Next}}{{end}}">Register</a></p>
+{{end}}
+
+{{define "login"}}
+{{template "authstart" .}}
+<h1>Sign in</h1>
+<p class="muted">Deploy and manage your apps.</p>
+{{template "login-fields" .}}
+{{template "authend" .}}
+{{end}}
+
+{{define "register"}}
+{{template "authstart" .}}
+<h1>Create account</h1>
+<p class="muted">Anyone can use the user console, including admins.</p>
+<form method="post" action="/register">
+  <input type="hidden" name="next" value="{{.Next}}">
+  <div class="field">
+    <label for="name">Name</label>
+    <input id="name" name="name" type="text" autocomplete="name" value="{{.Name}}">
+  </div>
+  <div class="field">
+    <label for="email">Email</label>
+    <input id="email" name="email" type="email" required autocomplete="username" value="{{.Email}}">
+  </div>
+  <div class="field">
+    <label for="password">Password</label>
+    <input id="password" name="password" type="password" required autocomplete="new-password">
+  </div>
+  <button type="submit">Create account</button>
+</form>
+<p class="muted">Already registered? <a href="/login{{if .Next}}?next={{urlquery .Next}}{{end}}">Sign in</a></p>
+{{template "authend" .}}
+{{end}}
+
+{{define "message"}}
+{{template "shellstart" .}}
+<div class="card">
+  <p class="muted">That page is not available.</p>
+  <p><a href="/">Back to apps</a></p>
+</div>
+{{template "shellend" .}}
+{{end}}
+
+{{define "home"}}
+{{template "shellstart" .}}
+<div class="btn-row" style="margin-bottom:16px">
+  <a class="btn" href="/apps/new">New app</a>
+</div>
+{{if not .Apps}}
+<div class="card">
+  <h2>No apps yet</h2>
+  <p class="muted">Create an app, upload a source archive, and the platform will build and deploy it.</p>
+</div>
+{{else}}
+<div class="card">
+  <table>
+    <thead>
+      <tr><th>Name</th><th>Status</th><th>URL</th></tr>
+    </thead>
+    <tbody>
+      {{range .Apps}}
+      <tr>
+        <td>
+          <a href="/apps/{{pathEscape .ID}}">{{.Name}}</a>
+          {{if .Slug}}<div class="muted mono">{{.Slug}}</div>{{end}}
+        </td>
+        <td><span class="{{badge .Status}}">{{.Status}}</span></td>
+        <td>
+          {{if .PublicURL}}<a href="{{.PublicURL}}" target="_blank" rel="noopener noreferrer">{{.PublicURL}}</a>{{else}}<span class="muted">pending</span>{{end}}
+        </td>
+      </tr>
+      {{end}}
+    </tbody>
+  </table>
+</div>
+{{end}}
+{{template "shellend" .}}
+{{end}}
+
+{{define "app-new"}}
+{{template "shellstart" .}}
+<div class="card">
+  <form method="post" action="/apps">
+    <div class="field">
+      <label for="name">Name</label>
+      <input id="name" name="name" type="text" value="{{.AppName}}" autocomplete="off">
+    </div>
+    <div class="field">
+      <label for="port">Port</label>
+      <input id="port" name="port" type="number" min="1" max="65535" value="{{if .Port}}{{.Port}}{{else}}8080{{end}}">
+    </div>
+    <div class="field">
+      <label>Persistence</label>
+      <div class="checks">
+        <label><input type="checkbox" name="persistence" value="postgresql"{{if .PersistPG}} checked{{end}}> postgresql</label>
+        <label><input type="checkbox" name="persistence" value="blob"{{if .PersistBlob}} checked{{end}}> blob</label>
+        <label><input type="checkbox" name="persistence" value="keyvalue"{{if .PersistKV}} checked{{end}}> keyvalue</label>
+      </div>
+    </div>
+    <div class="field">
+      <label for="app_yaml">app.yaml <span class="muted">(optional)</span></label>
+      <textarea id="app_yaml" name="app_yaml" placeholder="name: My App&#10;port: 8080&#10;persistence:&#10;  - postgresql">{{.AppYAML}}</textarea>
+    </div>
+    <p class="muted">If the name, port, or persistence fields are empty, values from app.yaml are used. You can also ship app.yaml at the archive root later.</p>
+    <button type="submit">Create app</button>
+  </form>
+</div>
+{{template "shellend" .}}
+{{end}}
+
+{{define "status-panel"}}
+<div id="status-panel" hx-get="/apps/{{pathEscape .App.ID}}?fragment=status" hx-trigger="every 3s" hx-swap="outerHTML">
+  <div class="btn-row">
+    <span class="{{badge .App.Status}}">{{if .App.Status}}{{.App.Status}}{{else}}unknown{{end}}</span>
+    <span class="muted">{{if .App.DetectedType}}{{.App.DetectedType}}{{else}}type not detected{{end}}</span>
+  </div>
+  <p>
+    {{if .App.PublicURL}}<a href="{{.App.PublicURL}}" target="_blank" rel="noopener noreferrer">{{.App.PublicURL}}</a>{{else}}<span class="muted">Public URL not assigned yet.</span>{{end}}
+  </p>
+  {{if .App.Image}}<p class="mono" style="overflow-wrap:anywhere">{{.App.Image}}</p>{{end}}
+  {{if .App.Error}}<div class="flash">{{.App.Error}}</div>{{end}}
+  {{if .Builds}}
+    {{with index .Builds 0}}
+      {{if and .Error (ne .Error $.App.Error)}}<div class="flash">{{.Error}}</div>{{end}}
+    {{end}}
+  {{end}}
+  <h2>Build log</h2>
+  <pre class="log">{{if .Log}}{{.Log}}{{else}}No build log yet.{{end}}</pre>
+</div>
+{{end}}
+
+{{define "app-detail"}}
+{{template "shellstart" .}}
+<p class="muted"><a href="/">All apps</a> · <span class="mono">{{.App.Slug}}</span> · port {{.App.Port}} · {{if .App.Persistence}}{{join .App.Persistence ", "}}{{else}}no persistence{{end}}</p>
+<div class="grid-2">
+  <div>
+    <div class="card">
+      {{template "status-panel" .}}
+    </div>
+    <div class="card">
+      <h2>Environment</h2>
+      <p class="muted">Platform variables are injected automatically and are not listed here. Secret values are hidden. Leave a secret blank to keep the stored value.</p>
+      <form method="post" action="/apps/{{pathEscape .App.ID}}/env">
+        <table>
+          <thead>
+            <tr><th>Key</th><th>Value</th><th>Secret</th></tr>
+          </thead>
+          <tbody>
+            {{range $i, $v := .EnvRows}}
+            <tr>
+              <td><input type="text" name="key" value="{{$v.Key}}" placeholder="KEY" autocomplete="off" style="width:100%"></td>
+              <td><input type="text" name="value" value="{{$v.Value}}" placeholder="{{if $v.Secret}}unchanged if blank{{else}}value{{end}}" autocomplete="off" style="width:100%"></td>
+              <td><label><input type="checkbox" name="secret_{{$i}}" value="1"{{if $v.Secret}} checked{{end}}> secret</label></td>
+            </tr>
+            {{end}}
+          </tbody>
+        </table>
+        <p class="btn-row"><button type="submit">Save environment</button></p>
+      </form>
+    </div>
+  </div>
+  <div>
+    <div class="card">
+      <h2>Source archive</h2>
+      <p class="muted">.tar.gz, .tgz, or .zip. A Dockerfile is used if present; otherwise the builder detects the language.</p>
+      <form method="post" action="/apps/{{pathEscape .App.ID}}/source" enctype="multipart/form-data">
+        <div class="field">
+          <label for="archive">Archive</label>
+          <input id="archive" type="file" name="archive" required>
+        </div>
+        <button type="submit">Upload source</button>
+      </form>
+    </div>
+    <div class="card">
+      <h2>Actions</h2>
+      <p class="muted">Rebuild uses the last uploaded archive.</p>
+      <div class="btn-row">
+        <form method="post" action="/apps/{{pathEscape .App.ID}}/rebuild">
+          <button type="submit">Rebuild</button>
+        </form>
+        <form method="post" action="/apps/{{pathEscape .App.ID}}/delete">
+          <button class="btn-danger" type="submit" onclick="return confirm('Delete this app?')">Delete</button>
+        </form>
+      </div>
+    </div>
+    <div class="card">
+      <h2>LLM access</h2>
+      {{if .Policy}}
+      <p>Review required: <strong>{{if .Policy.RequiresReview}}yes{{else}}no{{end}}</strong></p>
+      <p class="muted">
+        {{if .Policy.RequiresReview}}Requests stay pending until an admin approves them.{{else}}Requests are approved immediately.{{end}}
+        User cap ${{printf "%.2f" .Policy.UserCapUSD}} · spent this month ${{printf "%.2f" .Policy.MonthSpendUSD}}. A cap of 0 means no cap.
+      </p>
+      {{else}}
+      <p class="muted">LLM policy is unavailable.</p>
+      {{end}}
+      {{if .Grant}}
+      <p>Latest request <span class="{{badge .Grant.Status}}">{{.Grant.Status}}</span> · cap ${{printf "%.2f" .Grant.SpendingCapUSD}}</p>
+      {{if .Grant.Models}}<p class="mono">{{join .Grant.Models ", "}}</p>{{end}}
+      {{if .Grant.Note}}<p class="muted">{{.Grant.Note}}</p>{{end}}
+      {{else}}
+      <p class="muted">No LLM request for this app yet.</p>
+      {{end}}
+      <form method="post" action="/apps/{{pathEscape .App.ID}}/llm">
+        <div class="field">
+          <label for="models">Models</label>
+          {{if .Models}}
+          <select id="models" name="models" multiple size="6">
+            {{range .Models}}
+            <option value="{{.ID}}">{{if .Name}}{{.Name}}{{else}}{{.ID}}{{end}}</option>
+            {{end}}
+          </select>
+          {{else}}
+          <p class="muted">No models are enabled yet.</p>
+          {{end}}
+        </div>
+        <div class="field">
+          <label for="spending_cap_usd">Spending cap (USD)</label>
+          <input id="spending_cap_usd" name="spending_cap_usd" type="number" min="0" step="0.01" value="0" required>
+        </div>
+        <button type="submit">Request access</button>
+      </form>
+    </div>
+  </div>
+</div>
+{{template "shellend" .}}
+{{end}}
+
+{{define "settings"}}
+{{template "shellstart" .}}
+{{if .NewKey}}
+<div class="card">
+  <h2>New API key</h2>
+  <p>Copy this key now. It will not be shown again.</p>
+  <pre class="log">{{.NewKey}}</pre>
+</div>
+{{end}}
+<div class="card">
+  <h2>Create key</h2>
+  <form method="post" action="/settings">
+    <div class="field">
+      <label for="name">Name</label>
+      <input id="name" name="name" type="text" required autocomplete="off">
+    </div>
+    <button type="submit">Create key</button>
+  </form>
+</div>
+<div class="card">
+  <h2>Keys</h2>
+  {{if not .Keys}}
+  <p class="muted">No API keys yet.</p>
+  {{else}}
+  <table>
+    <thead>
+      <tr><th>Name</th><th>Prefix</th><th>Created</th><th></th></tr>
+    </thead>
+    <tbody>
+      {{range .Keys}}
+      <tr>
+        <td>{{.Name}}</td>
+        <td class="mono">{{.Prefix}}</td>
+        <td class="muted">{{.CreatedAt}}</td>
+        <td>
+          <form method="post" action="/settings/{{pathEscape .ID}}/revoke">
+            <button class="btn-danger" type="submit">Revoke</button>
+          </form>
+        </td>
+      </tr>
+      {{end}}
+    </tbody>
+  </table>
+  {{end}}
+</div>
+{{template "shellend" .}}
+{{end}}
+
+{{define "oauth-login"}}
+{{template "authstart" .}}
+{{if .LoggedIn}}
+<h1>Continue</h1>
+<p>{{if .ClientName}}<strong>{{.ClientName}}</strong> is requesting access.{{else}}An application is requesting access.{{end}}</p>
+{{if .User}}<p class="muted">Signed in as {{.User.Email}}</p>{{end}}
+{{if .Scopes}}<p class="mono">{{join .Scopes " "}}</p>{{end}}
+<form method="post" action="/oauth2/login">
+  <input type="hidden" name="login_challenge" value="{{.Challenge}}">
+  <div class="field">
+    <label><input type="checkbox" name="remember" value="1" checked> Remember this login</label>
+  </div>
+  <button type="submit">Continue</button>
+</form>
+<form method="post" action="/logout">
+  <input type="hidden" name="next" value="{{.Next}}">
+  <p><button class="ghost" type="submit">Use a different account</button></p>
+</form>
+{{else}}
+<h1>Sign in</h1>
+<p class="muted">Sign in to continue. You will return to this authorization request.</p>
+{{template "login-fields" .}}
+{{end}}
+{{template "authend" .}}
+{{end}}
+
+{{define "oauth-consent"}}
+{{template "authstart" .}}
+{{if not .LoggedIn}}
+<h1>Sign in</h1>
+<p class="muted">Sign in to review this consent request.</p>
+{{template "login-fields" .}}
+{{else}}
+<h1>Allow access</h1>
+<p>{{if .ClientName}}<strong>{{.ClientName}}</strong> wants permission to act on your behalf.{{else}}An application wants permission to act on your behalf.{{end}}</p>
+{{if .User}}<p class="muted">Signed in as {{.User.Email}}</p>{{end}}
+<form method="post" action="/oauth2/consent">
+  <input type="hidden" name="consent_challenge" value="{{.Challenge}}">
+  {{if .Scopes}}
+  <input type="hidden" name="scope_form" value="1">
+  <div class="field">
+    <label>Scopes</label>
+    <div class="checks">
+      {{range .Scopes}}
+      <label><input type="checkbox" name="scope" value="{{.}}" checked> {{.}}</label>
+      {{end}}
+    </div>
+  </div>
+  {{else}}
+  <p class="muted">This client requested no specific scopes.</p>
+  {{end}}
+  <div class="field">
+    <label><input type="checkbox" name="remember" value="1" checked> Remember this consent</label>
+  </div>
+  <button type="submit">Allow</button>
+</form>
+{{end}}
+{{template "authend" .}}
+{{end}}

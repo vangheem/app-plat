@@ -1,0 +1,323 @@
+apiVersion: v1
+kind: Secret
+metadata:
+  name: app-plat-config
+  namespace: app-plat
+stringData:
+  APP_PLAT_DATABASE_URL: postgres://appplat:appplat@postgres:5432/appplat?sslmode=disable
+  APP_PLAT_NAMESPACE: app-plat
+  KRATOS_PUBLIC_URL: http://kratos:4433
+  KRATOS_ADMIN_URL: http://kratos:4434
+  HYDRA_ADMIN_URL: http://hydra:4445
+  HYDRA_PUBLIC_URL: http://hydra:4444
+  APP_PLAT_ADMIN_EMAIL: admin@app-plat.local
+  APP_PLAT_ADMIN_PASSWORD: app-plat-admin
+  APP_PLAT_DATA_DIR: /var/lib/app-plat
+  APP_PLAT_APPS_DOMAIN: apps.127.0.0.1.nip.io
+  APP_PLAT_UI_DOMAIN: 127.0.0.1.nip.io
+  APP_PLAT_GATEWAY_PORT: "30080"
+  APP_PLAT_IMAGE_PULL_POLICY: Never
+  APP_PLAT_REGISTRY: registry:5000
+  APP_PLAT_BLOB_ENDPOINT: http://rustfs:9000
+  APP_PLAT_BLOB_ACCESS_KEY: rustfsadmin
+  APP_PLAT_BLOB_SECRET_KEY: rustfsadmin
+  APP_PLAT_BLOB_PUBLIC_ENDPOINT: http://blob-gateway:9000
+  APP_PLAT_BLOB_REGION: us-east-1
+  APP_PLAT_KV_ADDR: valkey:6379
+  APP_PLAT_KV_PASSWORD: appplat
+  APP_PLAT_POSTGRES_APP_HOST: pgbouncer
+  APP_PLAT_POSTGRES_APP_PORT: "5432"
+  APP_PLAT_POSTGRES_DATABASE: appplat
+  APP_PLAT_INTERNAL_TOKEN: app-plat-internal
+  CONTROL_PLANE_URL: http://control-plane:8080
+  INTERNAL_TOKEN: app-plat-internal
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: app-plat-data
+  namespace: app-plat
+spec:
+  accessModes: ["ReadWriteOnce"]
+  resources:
+    requests:
+      storage: 2Gi
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: control-plane
+  namespace: app-plat
+  labels:
+    app: control-plane
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: control-plane
+  template:
+    metadata:
+      labels:
+        app: control-plane
+    spec:
+      serviceAccountName: control-plane
+      containers:
+        - name: control-plane
+          image: app-plat/control-plane:dev
+          imagePullPolicy: Never
+          ports:
+            - containerPort: 8080
+          envFrom:
+            - secretRef:
+                name: app-plat-config
+            - secretRef:
+                name: app-plat-openrouter
+                optional: true
+          volumeMounts:
+            - name: data
+              mountPath: /var/lib/app-plat
+            - name: docker
+              mountPath: /var/run/docker.sock
+          readinessProbe:
+            httpGet:
+              path: /healthz
+              port: 8080
+            initialDelaySeconds: 3
+            periodSeconds: 5
+          resources:
+            requests:
+              cpu: 50m
+              memory: 64Mi
+      volumes:
+        - name: data
+          persistentVolumeClaim:
+            claimName: app-plat-data
+        - name: docker
+          hostPath:
+            path: /var/run/docker.sock
+            type: Socket
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: control-plane
+  namespace: app-plat
+spec:
+  selector:
+    app: control-plane
+  ports:
+    - port: 8080
+      targetPort: 8080
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: blob-gateway
+  namespace: app-plat
+  labels:
+    app: blob-gateway
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: blob-gateway
+  template:
+    metadata:
+      labels:
+        app: blob-gateway
+    spec:
+      serviceAccountName: blob-gateway
+      containers:
+        - name: blob-gateway
+          image: app-plat/blob-gateway:dev
+          imagePullPolicy: Never
+          ports:
+            - containerPort: 9000
+          env:
+            - name: LISTEN_ADDR
+              value: ":9000"
+          envFrom:
+            - secretRef:
+                name: app-plat-config
+          readinessProbe:
+            httpGet:
+              path: /healthz
+              port: 9000
+            initialDelaySeconds: 2
+            periodSeconds: 5
+          resources:
+            requests:
+              cpu: 20m
+              memory: 32Mi
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: blob-gateway
+  namespace: app-plat
+spec:
+  selector:
+    app: blob-gateway
+  ports:
+    - port: 9000
+      targetPort: 9000
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: llm-gateway
+  namespace: app-plat
+  labels:
+    app: llm-gateway
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: llm-gateway
+  template:
+    metadata:
+      labels:
+        app: llm-gateway
+    spec:
+      serviceAccountName: llm-gateway
+      containers:
+        - name: llm-gateway
+          image: app-plat/llm-gateway:dev
+          imagePullPolicy: Never
+          ports:
+            - containerPort: 8083
+          env:
+            - name: LISTEN_ADDR
+              value: ":8083"
+          envFrom:
+            - secretRef:
+                name: app-plat-config
+            - secretRef:
+                name: app-plat-openrouter
+                optional: true
+          readinessProbe:
+            httpGet:
+              path: /healthz
+              port: 8083
+            initialDelaySeconds: 2
+            periodSeconds: 5
+          resources:
+            requests:
+              cpu: 20m
+              memory: 32Mi
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: llm-gateway
+  namespace: app-plat
+spec:
+  selector:
+    app: llm-gateway
+  ports:
+    - port: 8083
+      targetPort: 8083
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: admin
+  namespace: app-plat
+  labels:
+    app: admin
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: admin
+  template:
+    metadata:
+      labels:
+        app: admin
+    spec:
+      serviceAccountName: admin
+      containers:
+        - name: admin
+          image: app-plat/admin:dev
+          imagePullPolicy: Never
+          ports:
+            - containerPort: 8081
+          env:
+            - name: LISTEN_ADDR
+              value: ":8081"
+            - name: CONTROL_PLANE_URL
+              value: http://control-plane:8080
+          readinessProbe:
+            httpGet:
+              path: /healthz
+              port: 8081
+            initialDelaySeconds: 2
+            periodSeconds: 5
+          resources:
+            requests:
+              cpu: 20m
+              memory: 32Mi
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: admin
+  namespace: app-plat
+spec:
+  selector:
+    app: admin
+  ports:
+    - port: 8081
+      targetPort: 8081
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: user
+  namespace: app-plat
+  labels:
+    app: user
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: user
+  template:
+    metadata:
+      labels:
+        app: user
+    spec:
+      serviceAccountName: user
+      containers:
+        - name: user
+          image: app-plat/user:dev
+          imagePullPolicy: Never
+          ports:
+            - containerPort: 8082
+          env:
+            - name: LISTEN_ADDR
+              value: ":8082"
+            - name: CONTROL_PLANE_URL
+              value: http://control-plane:8080
+          readinessProbe:
+            httpGet:
+              path: /healthz
+              port: 8082
+            initialDelaySeconds: 2
+            periodSeconds: 5
+          resources:
+            requests:
+              cpu: 20m
+              memory: 32Mi
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: user
+  namespace: app-plat
+spec:
+  selector:
+    app: user
+  ports:
+    - port: 8082
+      targetPort: 8082

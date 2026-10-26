@@ -1,0 +1,7 @@
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: app-plat
+  labels:
+    istio-injection: enabled
+    app-plat.io/name: app-plat

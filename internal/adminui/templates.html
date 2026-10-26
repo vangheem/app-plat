@@ -1,0 +1,523 @@
+{{define "htmlhead"}}
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>{{.Title}} · app-plat</title>
+  <link rel="stylesheet" href="/static/app.css">
+</head>
+<body>
+{{end}}
+
+{{define "htmlfoot"}}
+<script src="/static/htmx.min.js"></script>
+</body>
+</html>
+{{end}}
+
+{{define "shellstart"}}
+{{template "htmlhead" .}}
+<div class="shell">
+  <aside class="sidebar">
+    <div class="brand">app-plat <span>{{.Brand}}</span></div>
+    <nav class="nav">
+      {{range .Nav}}
+      <a href="{{.Href}}"{{if eq $.Active .Href}} class="active"{{end}}>{{.Label}}</a>
+      {{end}}
+    </nav>
+    <div class="side-meta">
+      {{if .User}}
+      {{if .User.Name}}<div>{{.User.Name}}</div>{{end}}
+      <div>{{.User.Email}}</div>
+      <div>{{.User.Role}}</div>
+      {{end}}
+      <form method="post" action="/logout">
+        <button type="submit">Log out</button>
+      </form>
+    </div>
+  </aside>
+  <main class="main">
+    <div class="topbar">
+      <h1>{{.Title}}</h1>
+    </div>
+    {{if .Flash}}<div class="flash">{{.Flash}}</div>{{end}}
+    {{if .Notice}}<p class="muted">{{.Notice}}</p>{{end}}
+{{end}}
+
+{{define "shellend"}}
+  </main>
+</div>
+{{template "htmlfoot" .}}
+{{end}}
+
+{{define "login"}}
+{{template "htmlhead" .}}
+<div class="auth-page">
+  <div class="login-wrap">
+    <div class="brand">app-plat <span>admin</span></div>
+    <div class="card">
+      {{if .Flash}}<div class="flash">{{.Flash}}</div>{{end}}
+      <h1>Sign in</h1>
+      <p class="muted">Administrator console.</p>
+      <form method="post" action="/login">
+        <input type="hidden" name="next" value="{{.Next}}">
+        <div class="field">
+          <label for="email">Email</label>
+          <input id="email" name="email" type="email" required autocomplete="username" value="{{.Email}}">
+        </div>
+        <div class="field">
+          <label for="password">Password</label>
+          <input id="password" name="password" type="password" required autocomplete="current-password">
+        </div>
+        <button type="submit">Sign in</button>
+      </form>
+    </div>
+  </div>
+</div>
+{{template "htmlfoot" .}}
+{{end}}
+
+{{define "forbidden"}}
+{{template "shellstart" .}}
+<div class="card">
+  <h2>Forbidden</h2>
+  <p>This console is for administrators.</p>
+  {{if .User}}<p class="muted">Signed in as {{.User.Email}} ({{.User.Role}}).</p>{{end}}
+</div>
+{{template "shellend" .}}
+{{end}}
+
+{{define "message"}}
+{{template "shellstart" .}}
+<div class="card">
+  <p class="muted">That page is not available.</p>
+  <p><a href="/apps">Back to apps</a></p>
+</div>
+{{template "shellend" .}}
+{{end}}
+
+{{define "health-table"}}
+{{if not .Health}}
+<p class="muted">No component reports.</p>
+{{else}}
+<table>
+  <thead>
+    <tr><th>Component</th><th>Status</th><th>Detail</th></tr>
+  </thead>
+  <tbody>
+    {{range .Health}}
+    <tr>
+      <td>{{.Name}}</td>
+      <td><span class="{{badge .Status}}">{{.Status}}</span></td>
+      <td class="muted">{{.Detail}}</td>
+    </tr>
+    {{end}}
+  </tbody>
+</table>
+{{end}}
+{{end}}
+
+{{define "dash-live"}}
+<div id="dash-live" hx-get="/?fragment=live" hx-trigger="every 5s" hx-swap="outerHTML">
+  <div class="grid-3">
+    <div class="card"><div class="muted">Apps</div><div class="stat">{{.AppCount}}</div></div>
+    <div class="card"><div class="muted">Users</div><div class="stat">{{.UserCount}}</div></div>
+    <div class="card"><div class="muted">Pending LLM</div><div class="stat">{{.PendingCount}}</div></div>
+  </div>
+  <div class="card">
+    <h2>Health</h2>
+    {{template "health-table" .}}
+  </div>
+</div>
+{{end}}
+
+{{define "dashboard"}}
+{{template "shellstart" .}}
+{{template "dash-live" .}}
+<div class="card">
+  <h2>Pending LLM requests</h2>
+  {{if not .Pending}}
+  <p class="muted">No requests are waiting for review.</p>
+  {{else}}
+  <table>
+    <thead>
+      <tr><th>User</th><th>App</th><th>Models</th><th>Cap</th></tr>
+    </thead>
+    <tbody>
+      {{range .Pending}}
+      <tr>
+        <td>{{if .UserEmail}}{{.UserEmail}}{{else}}{{.UserID}}{{end}}</td>
+        <td>{{if .AppSlug}}{{.AppSlug}}{{else}}{{.AppID}}{{end}}</td>
+        <td class="mono">{{join .Models ", "}}</td>
+        <td>${{printf "%.2f" .SpendingCapUSD}}</td>
+      </tr>
+      {{end}}
+    </tbody>
+  </table>
+  <p><a href="/llm">Review on the LLM page</a></p>
+  {{end}}
+</div>
+{{template "shellend" .}}
+{{end}}
+
+{{define "users"}}
+{{template "shellstart" .}}
+<div class="card">
+  <h2>Create user</h2>
+  <form method="post" action="/users">
+    <div class="grid-2">
+      <div class="field">
+        <label for="email">Email</label>
+        <input id="email" name="email" type="email" required value="{{.Email}}" autocomplete="off">
+      </div>
+      <div class="field">
+        <label for="password">Password</label>
+        <input id="password" name="password" type="password" required autocomplete="new-password">
+      </div>
+    </div>
+    <div class="grid-2">
+      <div class="field">
+        <label for="name">Name</label>
+        <input id="name" name="name" type="text" value="{{.Name}}" autocomplete="off">
+      </div>
+      <div class="field">
+        <label for="role">Role</label>
+        <select id="role" name="role">
+          <option value="user"{{if eq .FormRole "user"}} selected{{end}}>user</option>
+          <option value="admin"{{if eq .FormRole "admin"}} selected{{end}}>admin</option>
+        </select>
+      </div>
+    </div>
+    <div class="field">
+      <label><input type="checkbox" name="llm_requires_review" value="1" checked> LLM requests require review</label>
+    </div>
+    <button type="submit">Create user</button>
+  </form>
+</div>
+{{if not .Users}}
+<div class="card"><p class="muted">No users yet.</p></div>
+{{else}}
+{{range .Users}}
+<form method="post" action="/users/{{pathEscape .ID}}">
+  <div class="card">
+    <h2>{{.Email}} {{if and $.User (eq .ID $.User.ID)}}<span class="badge">you</span>{{end}}</h2>
+    <p class="muted mono">{{.ID}}{{if .CreatedAt}} · {{.CreatedAt}}{{end}}</p>
+    <div class="grid-2">
+      <div class="field">
+        <label>Name</label>
+        <input type="text" name="name" value="{{.Name}}">
+      </div>
+      <div class="field">
+        <label>Role</label>
+        <select name="role">
+          <option value="user"{{if eq .Role "user"}} selected{{end}}>user</option>
+          <option value="admin"{{if eq .Role "admin"}} selected{{end}}>admin</option>
+        </select>
+      </div>
+    </div>
+    <div class="grid-2">
+      <div class="field">
+        <label>LLM cap (USD)</label>
+        <input type="number" name="llm_cap_usd" min="0" step="0.01" value="{{printf "%.2f" .LLMCapUSD}}">
+      </div>
+      <div class="field">
+        <label><input type="checkbox" name="llm_requires_review" value="1"{{if .LLMRequiresReview}} checked{{end}}> LLM requests require review</label>
+      </div>
+    </div>
+    <button type="submit">Save</button>
+  </div>
+</form>
+{{end}}
+{{end}}
+{{template "shellend" .}}
+{{end}}
+
+{{define "apps"}}
+{{template "shellstart" .}}
+{{if not .Apps}}
+<div class="card">
+  <h2>No apps</h2>
+  <p class="muted">No applications have been created.</p>
+</div>
+{{else}}
+<div class="card">
+  <table>
+    <thead>
+      <tr><th>Name</th><th>Owner</th><th>Status</th><th>URL</th></tr>
+    </thead>
+    <tbody>
+      {{range .Apps}}
+      <tr>
+        <td>
+          <a href="/apps/{{pathEscape .ID}}">{{.Name}}</a>
+          {{if .Slug}}<div class="muted mono">{{.Slug}}</div>{{end}}
+        </td>
+        <td>{{if .OwnerEmail}}{{.OwnerEmail}}{{else}}<span class="mono">{{.OwnerID}}</span>{{end}}</td>
+        <td><span class="{{badge .Status}}">{{.Status}}</span></td>
+        <td>{{if .PublicURL}}<a href="{{.PublicURL}}" target="_blank" rel="noopener noreferrer">{{.PublicURL}}</a>{{else}}<span class="muted">pending</span>{{end}}</td>
+      </tr>
+      {{end}}
+    </tbody>
+  </table>
+</div>
+{{end}}
+{{template "shellend" .}}
+{{end}}
+
+{{define "status-panel"}}
+<div id="status-panel" hx-get="/apps/{{pathEscape .App.ID}}?fragment=status" hx-trigger="every 3s" hx-swap="outerHTML">
+  <div class="btn-row">
+    <span class="{{badge .App.Status}}">{{if .App.Status}}{{.App.Status}}{{else}}unknown{{end}}</span>
+    <span class="muted">{{if .App.DetectedType}}{{.App.DetectedType}}{{else}}type not detected{{end}}</span>
+  </div>
+  <p>{{if .App.PublicURL}}<a href="{{.App.PublicURL}}" target="_blank" rel="noopener noreferrer">{{.App.PublicURL}}</a>{{else}}<span class="muted">Public URL not assigned yet.</span>{{end}}</p>
+  {{if .App.Error}}<div class="flash">{{.App.Error}}</div>{{end}}
+  <h2>Build log</h2>
+  <pre class="log">{{if .Log}}{{.Log}}{{else}}No build log yet.{{end}}</pre>
+</div>
+{{end}}
+
+{{define "app-detail"}}
+{{template "shellstart" .}}
+<p class="muted"><a href="/apps">All apps</a></p>
+<div class="card">
+  <p><span class="mono">{{.App.Slug}}</span> · {{.App.ID}}</p>
+  <p>Owner {{if .App.OwnerEmail}}{{.App.OwnerEmail}}{{else}}<span class="mono">{{.App.OwnerID}}</span>{{end}}</p>
+  <p>Port {{.App.Port}} · {{if .App.Persistence}}{{join .App.Persistence ", "}}{{else}}no persistence{{end}}</p>
+  {{if .App.Image}}<p class="mono" style="overflow-wrap:anywhere">{{.App.Image}}</p>{{end}}
+  <p class="muted">Created {{.App.CreatedAt}} · updated {{.App.UpdatedAt}}</p>
+  {{template "status-panel" .}}
+</div>
+{{if .Builds}}
+<div class="card">
+  <h2>Builds</h2>
+  <table>
+    <thead>
+      <tr><th>When</th><th>Status</th><th>Image</th><th>Error</th></tr>
+    </thead>
+    <tbody>
+      {{range .Builds}}
+      <tr>
+        <td class="muted">{{.CreatedAt}}</td>
+        <td><span class="{{badge .Status}}">{{.Status}}</span></td>
+        <td class="mono">{{.Image}}</td>
+        <td>{{.Error}}</td>
+      </tr>
+      {{end}}
+    </tbody>
+  </table>
+</div>
+{{end}}
+{{template "shellend" .}}
+{{end}}
+
+{{define "llm"}}
+{{template "shellstart" .}}
+<div class="card">
+  <div class="topbar">
+    <h2>Models</h2>
+    <form method="post" action="/llm/models/sync">
+      <button type="submit">Sync catalog</button>
+    </form>
+  </div>
+  <p class="muted">{{.EnabledCount}} of {{len .Models}} enabled. Only enabled models can be requested.</p>
+  {{if not .Models}}
+  <p class="muted">No models synced yet.</p>
+  {{else}}
+  <form method="post" action="/llm/models">
+    <div class="btn-row" style="margin-bottom:12px">
+      <button type="submit" name="bulk" value="save">Save toggles</button>
+      <button type="submit" name="bulk" value="enable">Enable all</button>
+      <button class="ghost" type="submit" name="bulk" value="disable" onclick="return confirm('Disable every model?')">Disable all</button>
+    </div>
+    <table>
+      <thead>
+        <tr><th>Enabled</th><th>Model</th><th>Context</th><th>Prompt</th><th>Completion</th></tr>
+      </thead>
+      <tbody>
+        {{range .Models}}
+        <tr>
+          <td>
+            <input type="hidden" name="id" value="{{.ID}}">
+            <input type="checkbox" name="enabled" value="{{.ID}}"{{if .Enabled}} checked{{end}}>
+          </td>
+          <td><div>{{if .Name}}{{.Name}}{{else}}{{.ID}}{{end}}</div><div class="muted mono">{{.ID}}</div></td>
+          <td>{{.ContextLength}}</td>
+          <td class="mono">{{.PromptPrice}}</td>
+          <td class="mono">{{.CompletionPrice}}</td>
+        </tr>
+        {{end}}
+      </tbody>
+    </table>
+  </form>
+  {{end}}
+</div>
+<div class="card">
+  <h2>Pending requests</h2>
+  {{if not .Requests}}
+  <p class="muted">No pending requests.</p>
+  {{else}}
+  <table>
+    <thead>
+      <tr><th>User</th><th>App</th><th>Models</th><th>Cap</th><th>Decision</th></tr>
+    </thead>
+    <tbody>
+      {{range .Requests}}
+      <tr>
+        <td>{{if .UserEmail}}{{.UserEmail}}{{else}}<span class="mono">{{.UserID}}</span>{{end}}</td>
+        <td>{{if .AppSlug}}{{.AppSlug}}{{else}}<span class="mono">{{.AppID}}</span>{{end}}</td>
+        <td class="mono">{{join .Models ", "}}</td>
+        <td>${{printf "%.2f" .SpendingCapUSD}}</td>
+        <td>
+          <form method="post" action="/llm/requests/{{pathEscape .ID}}">
+            <div class="field">
+              <label>Note</label>
+              <input type="text" name="note" autocomplete="off">
+            </div>
+            <div class="btn-row">
+              <button type="submit" name="decision" value="approve">Approve</button>
+              <button class="btn-danger" type="submit" name="decision" value="deny">Deny</button>
+            </div>
+          </form>
+        </td>
+      </tr>
+      {{end}}
+    </tbody>
+  </table>
+  {{end}}
+</div>
+<div class="grid-2">
+  <div class="card">
+    <h2>Usage</h2>
+    <form method="get" action="/llm">
+      <div class="field">
+        <label for="filter_user">User id</label>
+        <input id="filter_user" type="text" name="user_id" value="{{.FilterUser}}">
+      </div>
+      <div class="field">
+        <label for="filter_app">App id</label>
+        <input id="filter_app" type="text" name="app_id" value="{{.FilterApp}}">
+      </div>
+      <button type="submit">Filter</button>
+    </form>
+    {{if not .Usage}}
+    <p class="muted">No usage recorded.</p>
+    {{else}}
+    <table>
+      <thead>
+        <tr><th>User</th><th>App</th><th>Model</th><th>Tokens</th><th>Cost</th><th>Requests</th></tr>
+      </thead>
+      <tbody>
+        {{range .Usage}}
+        <tr>
+          <td>{{if .UserEmail}}{{.UserEmail}}{{else}}<span class="mono">{{.UserID}}</span>{{end}}</td>
+          <td>{{if .AppSlug}}{{.AppSlug}}{{else}}<span class="mono">{{.AppID}}</span>{{end}}</td>
+          <td class="mono">{{.Model}}</td>
+          <td>{{.PromptTokens}} / {{.CompletionTokens}}</td>
+          <td>${{printf "%.6f" .CostUSD}}</td>
+          <td>{{.Requests}}</td>
+        </tr>
+        {{end}}
+      </tbody>
+    </table>
+    {{end}}
+  </div>
+  <div class="card">
+    <h2>Spending cap</h2>
+    <p class="muted">Set a monthly cap for a user, the latest grant on an app, or both. Zero means no cap.</p>
+    <form method="post" action="/llm/caps">
+      <div class="field">
+        <label for="cap_user">User id</label>
+        <input id="cap_user" type="text" name="user_id" value="{{.CapUser}}">
+      </div>
+      <div class="field">
+        <label for="cap_app">App id</label>
+        <input id="cap_app" type="text" name="app_id" value="{{.CapApp}}">
+      </div>
+      <div class="field">
+        <label for="spending_cap_usd">Cap (USD)</label>
+        <input id="spending_cap_usd" type="number" name="spending_cap_usd" min="0" step="0.01" value="{{.CapAmount}}" required>
+      </div>
+      <button type="submit">Save cap</button>
+    </form>
+  </div>
+</div>
+{{template "shellend" .}}
+{{end}}
+
+{{define "oauth"}}
+{{template "shellstart" .}}
+{{if .NewClient}}
+<div class="card">
+  <h2>Client created</h2>
+  <p>Copy the secret now. It will not be shown again.</p>
+  <p>Client ID <span class="mono">{{.NewClient.ID}}</span></p>
+  {{if .NewClient.Secret}}<pre class="log">{{.NewClient.Secret}}</pre>{{else}}<p class="muted">The control plane did not return a secret.</p>{{end}}
+</div>
+{{end}}
+<div class="card">
+  <h2>Create client</h2>
+  <form method="post" action="/oauth">
+    <div class="field">
+      <label for="name">Name</label>
+      <input id="name" name="name" type="text" required>
+    </div>
+    <div class="field">
+      <label for="redirect_uris">Redirect URIs</label>
+      <textarea id="redirect_uris" name="redirect_uris" placeholder="https://example.com/callback, https://example.com/oauth" required></textarea>
+      <span class="muted">Comma-separated.</span>
+    </div>
+    <div class="field">
+      <label for="scope">Scopes</label>
+      <input id="scope" name="scope" type="text" value="openid offline apps">
+    </div>
+    <input type="hidden" name="grant_type" value="authorization_code">
+    <input type="hidden" name="grant_type" value="refresh_token">
+    <button type="submit">Create client</button>
+  </form>
+</div>
+<div class="card">
+  <h2>Clients</h2>
+  {{if not .Clients}}
+  <p class="muted">No OAuth clients yet.</p>
+  {{else}}
+  <table>
+    <thead>
+      <tr><th>Name</th><th>ID</th><th>Redirects</th><th>Scope</th><th></th></tr>
+    </thead>
+    <tbody>
+      {{range .Clients}}
+      <tr>
+        <td>{{.Name}}</td>
+        <td class="mono">{{.ID}}</td>
+        <td>{{join .RedirectURIs ", "}}</td>
+        <td class="mono">{{.Scope}}</td>
+        <td>
+          <form method="post" action="/oauth/{{pathEscape .ID}}/delete">
+            <button class="btn-danger" type="submit">Delete</button>
+          </form>
+        </td>
+      </tr>
+      {{end}}
+    </tbody>
+  </table>
+  {{end}}
+</div>
+{{template "shellend" .}}
+{{end}}
+
+{{define "health-panel"}}
+<div id="health-panel" hx-get="/health?fragment=health" hx-trigger="every 5s" hx-swap="outerHTML">
+  {{template "health-table" .}}
+</div>
+{{end}}
+
+{{define "health"}}
+{{template "shellstart" .}}
+<div class="card">
+  <h2>Components</h2>
+  {{template "health-panel" .}}
+</div>
+{{template "shellend" .}}
+{{end}}

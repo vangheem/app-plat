@@ -1,0 +1,81 @@
+version: v0.13.0
+
+dsn: postgres://appplat:appplat@postgres:5432/kratos?sslmode=disable
+
+serve:
+  public:
+    base_url: http://kratos:4433/
+    port: 4433
+    cors:
+      enabled: true
+      allowed_origins:
+        - "*"
+  admin:
+    base_url: http://kratos:4434/
+    port: 4434
+
+selfservice:
+  default_browser_return_url: http://app.127.0.0.1.nip.io:30080/
+  allowed_return_urls:
+    - http://app.127.0.0.1.nip.io:30080
+    - http://admin.127.0.0.1.nip.io:30080
+  methods:
+    password:
+      enabled: true
+    link:
+      enabled: false
+    code:
+      enabled: true
+  flows:
+    error:
+      ui_url: http://app.127.0.0.1.nip.io:30080/login
+    settings:
+      ui_url: http://app.127.0.0.1.nip.io:30080/settings
+      privileged_session_max_age: 15m
+    recovery:
+      enabled: false
+      ui_url: http://app.127.0.0.1.nip.io:30080/login
+    verification:
+      enabled: false
+      ui_url: http://app.127.0.0.1.nip.io:30080/login
+    logout:
+      after:
+        default_browser_return_url: http://app.127.0.0.1.nip.io:30080/login
+    login:
+      ui_url: http://app.127.0.0.1.nip.io:30080/login
+      lifespan: 30m
+    registration:
+      ui_url: http://app.127.0.0.1.nip.io:30080/register
+      lifespan: 30m
+      after:
+        password:
+          hooks:
+            - hook: session
+
+log:
+  level: info
+  format: text
+
+secrets:
+  cookie:
+    - app-plat-dev-cookie-secret-32ch
+  cipher:
+    - app-plat-dev-cipher-secret-32ch
+
+ciphers:
+  algorithm: xchacha20-poly1305
+
+hashers:
+  algorithm: bcrypt
+  bcrypt:
+    cost: 8
+
+identity:
+  default_schema_id: default
+  schemas:
+    - id: default
+      url: file:///etc/config/identity.schema.json
+
+courier:
+  smtp:
+    connection_uri: smtps://noop:noop@127.0.0.1:1234/?skip_ssl_verify=true

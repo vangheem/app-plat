@@ -1,0 +1,31 @@
+serve:
+  public:
+    port: 4444
+    cors:
+      enabled: true
+  admin:
+    port: 4445
+  cookies:
+    same_site_mode: Lax
+
+urls:
+  self:
+    issuer: http://oauth.127.0.0.1.nip.io:30080
+  consent: http://app.127.0.0.1.nip.io:30080/oauth2/consent
+  login: http://app.127.0.0.1.nip.io:30080/oauth2/login
+  logout: http://app.127.0.0.1.nip.io:30080/oauth2/logout
+
+secrets:
+  system:
+    - app-plat-hydra-system-secret-32
+
+oidc:
+  subject_identifiers:
+    supported_types:
+      - public
+    pairwise:
+      salt: app-plat-hydra-pairwise-salt
+
+ttl:
+  access_token: 1h
+  refresh_token: 720h

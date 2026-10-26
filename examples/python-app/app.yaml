@@ -1,0 +1,6 @@
+name: Python Demo
+port: 8080
+persistence:
+  - postgresql
+  - blob
+  - keyvalue

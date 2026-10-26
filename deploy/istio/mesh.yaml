@@ -1,0 +1,328 @@
+apiVersion: security.istio.io/v1
+kind: PeerAuthentication
+metadata:
+  name: default
+  namespace: app-plat
+spec:
+  mtls:
+    mode: STRICT
+---
+apiVersion: security.istio.io/v1
+kind: AuthorizationPolicy
+metadata:
+  name: deny-all
+  namespace: app-plat
+spec: {}
+---
+apiVersion: security.istio.io/v1
+kind: AuthorizationPolicy
+metadata:
+  name: allow-control-plane
+  namespace: app-plat
+spec:
+  selector:
+    matchLabels:
+      app: control-plane
+  action: ALLOW
+  rules:
+    - from:
+        - source:
+            namespaces: ["istio-system"]
+        - source:
+            principals:
+              - cluster.local/ns/app-plat/sa/admin
+              - cluster.local/ns/app-plat/sa/user
+              - cluster.local/ns/app-plat/sa/llm-gateway
+              - cluster.local/ns/app-plat/sa/blob-gateway
+---
+apiVersion: security.istio.io/v1
+kind: AuthorizationPolicy
+metadata:
+  name: allow-admin
+  namespace: app-plat
+spec:
+  selector:
+    matchLabels:
+      app: admin
+  action: ALLOW
+  rules:
+    - from:
+        - source:
+            namespaces: ["istio-system"]
+---
+apiVersion: security.istio.io/v1
+kind: AuthorizationPolicy
+metadata:
+  name: allow-user
+  namespace: app-plat
+spec:
+  selector:
+    matchLabels:
+      app: user
+  action: ALLOW
+  rules:
+    - from:
+        - source:
+            namespaces: ["istio-system"]
+---
+apiVersion: security.istio.io/v1
+kind: AuthorizationPolicy
+metadata:
+  name: allow-llm-gateway
+  namespace: app-plat
+spec:
+  selector:
+    matchLabels:
+      app: llm-gateway
+  action: ALLOW
+  rules:
+    - from:
+        - source:
+            principals:
+              - cluster.local/ns/app-plat/sa/control-plane
+        - source:
+            namespaces: ["app-plat"]
+---
+apiVersion: security.istio.io/v1
+kind: AuthorizationPolicy
+metadata:
+  name: allow-blob-gateway
+  namespace: app-plat
+spec:
+  selector:
+    matchLabels:
+      app: blob-gateway
+  action: ALLOW
+  rules:
+    - from:
+        - source:
+            principals:
+              - cluster.local/ns/app-plat/sa/control-plane
+        - source:
+            namespaces: ["app-plat"]
+---
+apiVersion: security.istio.io/v1
+kind: AuthorizationPolicy
+metadata:
+  name: allow-kratos
+  namespace: app-plat
+spec:
+  selector:
+    matchLabels:
+      app: kratos
+  action: ALLOW
+  rules:
+    - from:
+        - source:
+            principals:
+              - cluster.local/ns/app-plat/sa/control-plane
+---
+apiVersion: security.istio.io/v1
+kind: AuthorizationPolicy
+metadata:
+  name: allow-hydra
+  namespace: app-plat
+spec:
+  selector:
+    matchLabels:
+      app: hydra
+  action: ALLOW
+  rules:
+    - from:
+        - source:
+            principals:
+              - cluster.local/ns/app-plat/sa/control-plane
+    - from:
+        - source:
+            namespaces: ["istio-system"]
+      to:
+        - operation:
+            ports: ["4444"]
+---
+apiVersion: networking.istio.io/v1
+kind: Gateway
+metadata:
+  name: app-plat-gateway
+  namespace: app-plat
+spec:
+  selector:
+    istio: ingress
+  servers:
+    - port:
+        number: 80
+        name: http
+        protocol: HTTP
+      hosts: ["*"]
+---
+apiVersion: networking.istio.io/v1
+kind: VirtualService
+metadata:
+  name: user-ui
+  namespace: app-plat
+spec:
+  hosts: ["app.127.0.0.1.nip.io"]
+  gateways: ["app-plat-gateway"]
+  http:
+    - route:
+        - destination:
+            host: user.app-plat.svc.cluster.local
+            port:
+              number: 8082
+---
+apiVersion: networking.istio.io/v1
+kind: VirtualService
+metadata:
+  name: admin-ui
+  namespace: app-plat
+spec:
+  hosts: ["admin.127.0.0.1.nip.io"]
+  gateways: ["app-plat-gateway"]
+  http:
+    - route:
+        - destination:
+            host: admin.app-plat.svc.cluster.local
+            port:
+              number: 8081
+---
+apiVersion: networking.istio.io/v1
+kind: VirtualService
+metadata:
+  name: api
+  namespace: app-plat
+spec:
+  hosts: ["api.127.0.0.1.nip.io"]
+  gateways: ["app-plat-gateway"]
+  http:
+    - route:
+        - destination:
+            host: control-plane.app-plat.svc.cluster.local
+            port:
+              number: 8080
+---
+apiVersion: networking.istio.io/v1
+kind: VirtualService
+metadata:
+  name: oauth
+  namespace: app-plat
+spec:
+  hosts: ["oauth.127.0.0.1.nip.io"]
+  gateways: ["app-plat-gateway"]
+  http:
+    - route:
+        - destination:
+            host: hydra.app-plat.svc.cluster.local
+            port:
+              number: 4444
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: postgres
+  namespace: app-plat
+spec:
+  podSelector:
+    matchLabels:
+      app: postgres
+  policyTypes: ["Ingress"]
+  ingress:
+    - from:
+        - podSelector:
+            matchLabels:
+              app: pgbouncer
+        - podSelector:
+            matchLabels:
+              app: kratos
+        - podSelector:
+            matchLabels:
+              app: hydra
+        - podSelector:
+            matchLabels:
+              app: control-plane
+      ports:
+        - protocol: TCP
+          port: 5432
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: pgbouncer
+  namespace: app-plat
+spec:
+  podSelector:
+    matchLabels:
+      app: pgbouncer
+  policyTypes: ["Ingress"]
+  ingress:
+    - from:
+        - podSelector:
+            matchLabels:
+              app-plat.io/role: user-app
+        - podSelector:
+            matchLabels:
+              app: control-plane
+      ports:
+        - protocol: TCP
+          port: 5432
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: valkey
+  namespace: app-plat
+spec:
+  podSelector:
+    matchLabels:
+      app: valkey
+  policyTypes: ["Ingress"]
+  ingress:
+    - from:
+        - podSelector:
+            matchLabels:
+              app-plat.io/role: user-app
+        - podSelector:
+            matchLabels:
+              app: control-plane
+      ports:
+        - protocol: TCP
+          port: 6379
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: rustfs
+  namespace: app-plat
+spec:
+  podSelector:
+    matchLabels:
+      app: rustfs
+  policyTypes: ["Ingress"]
+  ingress:
+    - from:
+        - podSelector:
+            matchLabels:
+              app: blob-gateway
+        - podSelector:
+            matchLabels:
+              app: control-plane
+      ports:
+        - protocol: TCP
+          port: 9000
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: registry
+  namespace: app-plat
+spec:
+  podSelector:
+    matchLabels:
+      app: registry
+  policyTypes: ["Ingress"]
+  ingress:
+    - from:
+        - podSelector:
+            matchLabels:
+              app: control-plane
+      ports:
+        - protocol: TCP
+          port: 5000
